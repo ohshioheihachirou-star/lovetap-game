@@ -6,48 +6,57 @@
   <title>Love Tap Game</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
     body {
       margin: 0;
       padding: 0;
       background: #fdf2f4;
       font-family: 'Helvetica Neue', Arial, sans-serif;
-      overflow: hidden; /* スクロールやはみ出しを防止 */
-      user-select: none;
-      -webkit-user-select: none;
+      overflow: hidden;
     }
     
-    /* ヘッダー（スコア表示） */
+    /* ヘッダー（スコア & 放置収益表示） */
     #header {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
-      height: 60px;
-      background: rgba(255, 255, 255, 0.9);
+      height: 70px;
+      background: rgba(255, 255, 255, 0.92);
       display: flex;
-      justify-content: center;
+      justify-content: space-around;
       align-items: center;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
       z-index: 10;
+      backdrop-filter: blur(5px);
     }
-    .score-container {
+    .score-box {
       text-align: center;
     }
     .score-label {
-      font-size: 12px;
+      font-size: 11px;
       color: #888;
     }
     .score-value {
-      font-size: 24px;
+      font-size: 20px;
       font-weight: bold;
       color: #ff4757;
     }
+    .cps-value {
+      font-size: 13px;
+      color: #ffa502;
+      font-weight: bold;
+    }
 
-    /* メインコンテンツ（画像とタップエリア） */
+    /* メインゲームエリア */
     #game-container {
       position: absolute;
-      top: 60px;
-      bottom: 0;
+      top: 70px;
+      bottom: 80px;
       left: 0;
       width: 100%;
       display: flex;
@@ -56,25 +65,51 @@
       overflow: hidden;
     }
 
-    /* 女の子の画像 */
+    /* キャラクター画像 */
     #char-image {
-      max-height: 85%;
-      max-width: 90%;
+      max-height: 90%;
+      max-width: 95%;
       object-fit: contain;
       cursor: pointer;
-      transition: transform 0.05s ease;
-      filter: drop-shadow(0 10px 15px rgba(0,0,0,0.1));
+      transition: transform 0.08s ease, filter 0.3s ease;
+      filter: drop-shadow(0 8px 16px rgba(0,0,0,0.12));
     }
 
     #char-image:active {
-      transform: scale(0.97);
+      transform: scale(0.96);
     }
 
-    /* 浮き出るハートのアニメーション設定 */
+    /* 吹き出し（台詞メッセージ） */
+    #speech-bubble {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95);
+      border: 2px solid #ff788e;
+      border-radius: 18px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: bold;
+      color: #d63031;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 15;
+      white-space: nowrap;
+    }
+
+    #speech-bubble.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-5px);
+    }
+
+    /* 浮き出るハートのアニメーション */
     .floating-heart {
       position: absolute;
-      font-size: 30px;
-      pointer-events: none; /* ハート自体がタップの邪魔をしないように */
+      font-size: 28px;
+      pointer-events: none;
       animation: floatUp 0.8s ease-out forwards;
       z-index: 20;
     }
@@ -82,15 +117,139 @@
     @keyframes floatUp {
       0% {
         opacity: 1;
-        transform: translate(-50%, -50%) scale(0.5) rotate(0deg);
+        transform: translate(-50%, -50%) scale(0.6) rotate(0deg);
       }
       50% {
-        transform: translate(-50%, -100px) scale(1.3) rotate(-10deg);
+        transform: translate(-50%, -90px) scale(1.2) rotate(-10deg);
       }
       100% {
         opacity: 0;
-        transform: translate(-50%, -150px) scale(1) rotate(10deg);
+        transform: translate(-50%, -140px) scale(1) rotate(10deg);
       }
+    }
+
+    /* 下部ナビゲーション / ショップボタン */
+    #footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 80px;
+      background: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+      z-index: 10;
+    }
+
+    .shop-btn {
+      background: linear-gradient(135deg, #ff758c, #ff7eb3);
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 25px;
+      font-size: 16px;
+      font-weight: bold;
+      box-shadow: 0 4px 15px rgba(255, 117, 140, 0.4);
+      cursor: pointer;
+    }
+
+    /* ショップモーダル（ポップアップ） */
+    #shop-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      justify-content: center;
+      align-items: flex-end;
+      z-index: 100;
+    }
+
+    .modal-content {
+      background: white;
+      width: 100%;
+      max-height: 70vh;
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      padding: 20px;
+      overflow-y: auto;
+      animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 10px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: #888;
+    }
+
+    .item-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      margin-bottom: 10px;
+      background: #f9f9f9;
+      border-radius: 12px;
+      border: 1px solid #eee;
+    }
+
+    .item-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .item-name {
+      font-size: 15px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .item-desc {
+      font-size: 12px;
+      color: #777;
+      margin-top: 2px;
+    }
+
+    .buy-btn {
+      background: #ff4757;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 15px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .buy-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
     }
   </style>
 </head>
@@ -98,68 +257,289 @@
 
   <!-- スコアヘッダー -->
   <div id="header">
-    <div class="score-container">
+    <div class="score-box">
       <div class="score-label">好感度</div>
       <div class="score-value" id="score">0</div>
     </div>
+    <div class="score-box">
+      <div class="score-label">1タップ上昇量</div>
+      <div class="score-value" id="tap-power" style="color:#2ed573;">1</div>
+    </div>
+    <div class="score-box">
+      <div class="score-label">秒間自動上昇</div>
+      <div class="cps-value" id="cps">0 /秒</div>
+    </div>
   </div>
 
-  <!-- ゲームメインエリア -->
+  <!-- メインゲームエリア -->
   <div id="game-container">
-    <!-- 画像ファイル名はご自身のファイル名に変更してください -->
-    <img src="main_char.png" id="char-image" alt="Character">
+    <div id="speech-bubble">……ん？</div>
+    <img src="cg_1.png" id="char-image" alt="Character">
+  </div>
+
+  <!-- フッター -->
+  <div id="footer">
+    <button class="shop-btn" id="open-shop">🎁 プレゼント・お店</button>
+  </div>
+
+  <!-- ショップモーダル -->
+  <div id="shop-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">プレゼントを送る</div>
+        <button class="close-btn" id="close-shop">✕</button>
+      </div>
+      <div id="item-list"></div>
+    </div>
   </div>
 
   <script>
-    // Telegram Web Appの初期化
+    // Telegram Web App API
     const tg = window.Telegram ? window.Telegram.WebApp : null;
     if (tg) {
       tg.ready();
       tg.expand();
     }
 
-    // セーブデータ（好感度）の読み込み
-    let count = parseInt(localStorage.getItem('lovetap_score')) || 0;
-    const scoreEl = document.getElementById('score');
-    const charImg = document.getElementById('char-image');
-    scoreEl.textContent = count;
+    // --- ゲーム設定データ ---
+    
+    // ステージと画像・解放会話メッセージの定義
+    const STAGES = [
+      {
+        threshold: 0,
+        img: 'cg_1.png',
+        dialogue: '（講義中…ふと目が合って恥ずかしそうに微笑む）',
+        quotes: ['あっ…手が当たっちゃった', '授業、集中しなきゃ…', 'ふふ、こっち見すぎだよ？']
+      },
+      {
+        threshold: 100,
+        img: 'cg_2.png',
+        dialogue: 'ほんのり酔っちゃった…今日は一緒にいれて嬉しいな',
+        quotes: ['酔ってないよ…？ほんとだよ', 'ねぇ、もう少し近くに来て…', '顔、赤くなってない？']
+      },
+      {
+        threshold: 500,
+        img: 'cg_3.png',
+        dialogue: '部屋で二人きりだね…なんだかドキドキしちゃう…',
+        quotes: ['そんなに見つめられると恥ずかしい…', '優しくしてね…？', 'ずっと一緒にいたいな']
+      },
+      {
+        threshold: 1500,
+        img: 'cg_4.png',
+        dialogue: '指輪…！本当に私でいいの…？嬉しくて涙が止まらないよ…！',
+        quotes: ['世界で一番幸せ者だよ私…', '一生大切にするね', 'ぎゅっと抱きしめて…']
+      },
+      {
+        threshold: 5000,
+        img: 'cg_5.png',
+        dialogue: 'ふふ、元気に動いてるよ。二人の赤ちゃん、待ち遠しいね。',
+        quotes: ['あなたにそっくりの子になるといいな', '優しく撫でてあげて？', 'ずっと家族でいようね']
+      },
+      {
+        threshold: 10000,
+        img: 'cg_6.png',
+        dialogue: '見て、私達の宝物だよ。生まれてきてくれて本当にありがとう。',
+        quotes: ['あなたと出会えて本当に良かった', 'これからもずっと愛してるよ', '幸せな家庭をつくろうね']
+      }
+    ];
 
-    // タップ・クリック時の処理
+    // ショップのアイテム定義
+    const ITEMS = [
+      { id: 'cake', name: 'ショートケーキ', desc: 'タップ時の好感度 +1', baseCost: 15, power: 1, type: 'tap', count: 0 },
+      { id: 'coffee', name: 'カフェラテ', desc: '毎秒の自動加算 +1', baseCost: 50, cps: 1, type: 'auto', count: 0 },
+      { id: 'perfume', name: '高級香水', desc: 'タップ時の好感度 +5', baseCost: 200, power: 5, type: 'tap', count: 0 },
+      { id: 'flowers', name: '花束', desc: '毎秒の自動加算 +10', baseCost: 1000, cps: 10, type: 'auto', count: 0 },
+      { id: 'ring', name: '指輪', desc: 'タップ時の好感度 +50', baseCost: 5000, power: 50, type: 'tap', count: 0 }
+    ];
+
+    // --- ゲームのステータス変数 ---
+    let score = parseFloat(localStorage.getItem('lovetap_score')) || 0;
+    let tapPower = 1;
+    let autoCps = 0;
+    let currentStageIndex = 0;
+    let speechTimer = null;
+
+    // 保存データの復元（ショップアイテム数）
+    let savedItems = JSON.parse(localStorage.getItem('lovetap_items')) || {};
+    ITEMS.forEach(item => {
+      if (savedItems[item.id]) {
+        item.count = savedItems[item.id];
+      }
+    });
+
+    // パラメータ再計算
+    function recalculateStats() {
+      tapPower = 1;
+      autoCps = 0;
+      ITEMS.forEach(item => {
+        if (item.type === 'tap') tapPower += item.power * item.count;
+        if (item.type === 'auto') autoCps += item.cps * item.count;
+      });
+      document.getElementById('tap-power').textContent = '+' + tapPower;
+      document.getElementById('cps').textContent = '+' + autoCps + ' /秒';
+    }
+
+    // コスト計算式 (元の値段 * 1.15 ^ 購入数)
+    function getItemCost(item) {
+      return Math.floor(item.baseCost * Math.pow(1.15, item.count));
+    }
+
+    // --- ステージ（画像＆セリフ）更新機能 ---
+    function updateStage() {
+      let newStageIndex = 0;
+      for (let i = STAGES.length - 1; i >= 0; i--) {
+        if (score >= STAGES[i].threshold) {
+          newStageIndex = i;
+          break;
+        }
+      }
+
+      // ステージが昇格した時の演出
+      if (newStageIndex !== currentStageIndex) {
+        currentStageIndex = newStageIndex;
+        const stageData = STAGES[currentStageIndex];
+        
+        // 画像切替
+        document.getElementById('char-image').src = stageData.img;
+        
+        // 節目開放セリフ表示
+        showSpeech(stageData.dialogue, 4000);
+      }
+    }
+
+    // 吹き出し表示関数
+    function showSpeech(text, duration = 2000) {
+      const bubble = document.getElementById('speech-bubble');
+      bubble.textContent = text;
+      bubble.classList.add('show');
+
+      clearTimeout(speechTimer);
+      speechTimer = setTimeout(() => {
+        bubble.classList.remove('show');
+      }, duration);
+    }
+
+    // ランダムなセリフを表示
+    function triggerRandomQuote() {
+      const stageData = STAGES[currentStageIndex];
+      const randomQuote = stageData.quotes[Math.floor(Math.random() * stageData.quotes.length)];
+      showSpeech(randomQuote, 1800);
+    }
+
+    // --- メインのタップ処理 ---
     function handleTap(x, y) {
-      // 1. スコア加算とセーブ
-      count++;
-      scoreEl.textContent = count;
-      localStorage.setItem('lovetap_score', count);
+      score += tapPower;
+      updateUI();
 
-      // 2. 振動フィードバック
+      // Haptic Feedback (バイブ)
       if (tg && tg.HapticFeedback) {
         tg.HapticFeedback.impactOccurred('light');
       }
 
-      // 3. タップ位置にハートを出現させる演出
+      // ハート演出
       createHeart(x, y);
+
+      // 15%の確率でセリフを喋る
+      if (Math.random() < 0.15) {
+        triggerRandomQuote();
+      }
     }
 
-    // ハート生成関数
+    // 画面タップ時のハート生成
     function createHeart(x, y) {
       const heart = document.createElement('div');
       heart.className = 'floating-heart';
       heart.textContent = '❤️';
       heart.style.left = x + 'px';
       heart.style.top = y + 'px';
-
       document.body.appendChild(heart);
 
-      // アニメーションが終わったら自動で要素を削除
-      setTimeout(() => {
-        heart.remove();
-      }, 800);
+      setTimeout(() => heart.remove(), 800);
     }
 
-    // イベントリスナー（スマホのマルチタップ・PCのクリック両対応）
-    charImg.addEventListener('pointerdown', (e) => {
+    // UIの描画更新
+    function updateUI() {
+      document.getElementById('score').textContent = Math.floor(score);
+      localStorage.setItem('lovetap_score', score);
+      updateStage();
+      renderShop();
+    }
+
+    // --- 自動加算（クッキークリッカー機能） ---
+    setInterval(() => {
+      if (autoCps > 0) {
+        score += autoCps / 10; // 0.1秒ごとに加算
+        updateUI();
+      }
+    }, 100);
+
+    // --- ショップの機能 ---
+    function renderShop() {
+      const listContainer = document.getElementById('item-list');
+      listContainer.innerHTML = '';
+
+      ITEMS.forEach(item => {
+        const cost = getItemCost(item);
+        const card = document.createElement('div');
+        card.className = 'item-card';
+
+        const canAfford = score >= cost;
+
+        card.innerHTML = `
+          <div class="item-info">
+            <div class="item-name">${item.name} (${item.count})</div>
+            <div class="item-desc">${item.desc} | コスト: ${cost}</div>
+          </div>
+          <button class="buy-btn" ${canAfford ? '' : 'disabled'} onclick="buyItem('${item.id}')">
+            購入
+          </button>
+        `;
+        listContainer.appendChild(card);
+      });
+    }
+
+    window.buyItem = function(itemId) {
+      const item = ITEMS.find(i => i.id === itemId);
+      const cost = getItemCost(item);
+
+      if (score >= cost) {
+        score -= cost;
+        item.count++;
+        
+        // アイテム所持数を保存
+        const saved = {};
+        ITEMS.forEach(i => saved[i.id] = i.count);
+        localStorage.setItem('lovetap_items', JSON.stringify(saved));
+
+        recalculateStats();
+        updateUI();
+
+        if (tg && tg.HapticFeedback) {
+          tg.HapticFeedback.notificationOccurred('success');
+        }
+      }
+    };
+
+    // モーダル開閉
+    document.getElementById('open-shop').addEventListener('click', () => {
+      document.getElementById('shop-modal').style.display = 'flex';
+      renderShop();
+    });
+
+    document.getElementById('close-shop').addEventListener('click', () => {
+      document.getElementById('shop-modal').style.display = 'none';
+    });
+
+    // タップイベント登録
+    document.getElementById('char-image').addEventListener('pointerdown', (e) => {
       handleTap(e.clientX, e.clientY);
     });
+
+    // 初期化ロード
+    recalculateStats();
+    updateUI();
+    // 初期ステージ画像をロード
+    document.getElementById('char-image').src = STAGES[currentStageIndex].img;
   </script>
 </body>
 </html>
